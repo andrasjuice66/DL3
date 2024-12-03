@@ -143,7 +143,8 @@ if __name__ == "__main__":
     
     # Model setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = FlexibleConvNet().to(device)
+    #change pooling to 'mean' to see the difference
+    model = FlexibleConvNet(pooling='max').to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
