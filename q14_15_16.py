@@ -7,35 +7,39 @@ import os
 from collections import defaultdict
 
 class FlexibleConvNet(nn.Module):
-    def __init__(self, num_classes=10, N=64):
+    def __init__(self, num_classes=10, N=64, pooling='max'):
         super(FlexibleConvNet, self).__init__()
+        
+        # Determine pooling type
+        if pooling.lower() == 'max':
+            self.pool = nn.MaxPool2d(kernel_size=2)
+            self.global_pool = nn.AdaptiveMaxPool2d(1)
+        elif pooling.lower() == 'mean':
+            self.pool = nn.AvgPool2d(kernel_size=2)
+            self.global_pool = nn.AdaptiveAvgPool2d(1)
+        else:
+            raise ValueError("Pooling must be either 'max' or 'mean'")
         
         # First conv block
         self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)
         self.relu1 = nn.ReLU()
-        self.pool1 = nn.MaxPool2d(kernel_size=2)
         
         # Second conv block
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
         self.relu2 = nn.ReLU()
-        self.pool2 = nn.MaxPool2d(kernel_size=2)
         
         # Third conv block
         self.conv3 = nn.Conv2d(32, N, kernel_size=3, stride=1, padding=1)
         self.relu3 = nn.ReLU()
-        self.pool3 = nn.MaxPool2d(kernel_size=2)
-        
-        # Global pooling (works with any input size)
-        self.global_pool = nn.AdaptiveMaxPool2d(1)
         
         # Final classification layer
         self.fc = nn.Linear(N, num_classes)
     
     def forward(self, x):
         # Conv blocks
-        x = self.pool1(self.relu1(self.conv1(x)))
-        x = self.pool2(self.relu2(self.conv2(x)))
-        x = self.pool3(self.relu3(self.conv3(x)))
+        x = self.pool(self.relu1(self.conv1(x)))
+        x = self.pool(self.relu2(self.conv2(x)))
+        x = self.pool(self.relu3(self.conv3(x)))
         
         # Global pooling and flatten
         x = self.global_pool(x)
