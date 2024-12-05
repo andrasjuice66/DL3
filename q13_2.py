@@ -14,33 +14,37 @@ LEARNING_RATE = 0.003
 RESOLUTIONS = [32, 48, 64]
 
 class AdaptiveConvNet(nn.Module):
-    def __init__(self):
+    def __init__(self, N=16):
         super(AdaptiveConvNet, self).__init__()
         
-        # Convolutional layers (same as before)
+        # First block: 1 -> 16 channels
         self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)
         self.relu1 = nn.ReLU()
         self.pool1 = nn.MaxPool2d(kernel_size=2)
         
+        # Second block: 16 -> 32 channels
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
         self.relu2 = nn.ReLU()
         self.pool2 = nn.MaxPool2d(kernel_size=2)
         
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        # Third block: 32 -> N channels
+        self.conv3 = nn.Conv2d(32, N, kernel_size=3, stride=1, padding=1)
         self.relu3 = nn.ReLU()
         self.pool3 = nn.MaxPool2d(kernel_size=2)
         
-        # Replace fixed FC layer with adaptive pooling
-        self.adaptive_pool = nn.AdaptiveAvgPool2d((3, 3))  # Output size always 3x3
-        self.fc = nn.Linear(64 * 3 * 3, 10)
+        # Global pooling (can use either max or mean)
+        self.global_pool = nn.AdaptiveMaxPool2d(1)
+        
+        # Final linear layer
+        self.fc = nn.Linear(N, 10)
     
     def forward(self, x):
         x = self.pool1(self.relu1(self.conv1(x)))
         x = self.pool2(self.relu2(self.conv2(x)))
         x = self.pool3(self.relu3(self.conv3(x)))
         
-        x = self.adaptive_pool(x)
-        x = x.view(-1, 64 * 3 * 3)
+        x = self.global_pool(x)
+        x = x.view(-1, x.size(1))
         x = self.fc(x)
         return x
 
