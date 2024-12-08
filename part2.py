@@ -3,12 +3,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import random_split
+from torch.utils.data import random_split, DataLoader
 
 # Setup
-BATCH_SIZE = 16
-EPOCHS = 40
-LEARNING_RATE = 0.001
+
 
 # Define the CNN architecture
 class ConvNet(nn.Module):
@@ -54,45 +52,39 @@ class ConvNet(nn.Module):
         x = self.fc(x)
         return x
 
-# Load and prepare data
-full_train = torchvision.datasets.MNIST(root='./data', train=True,
-                                      download=True, transform=transforms.ToTensor())
+# First load with DataLoaders
+train = torchvision.datasets.MNIST(root='./data', train=True,
+                                 download=True, transform=transforms.ToTensor())
+trainloader = DataLoader(train, batch_size=len(train), shuffle=True, num_workers=0)
 test = torchvision.datasets.MNIST(root='./data', train=False,
                                 download=True, transform=transforms.ToTensor())
+testloader = DataLoader(test, batch_size=len(test), shuffle=True, num_workers=0)
 
-# Split into train and validation (50000 and 10000)
-train_dataset, val_dataset = random_split(full_train, [50000, 10000])
+# Convert to large tensors
+train_data, train_labels = next(iter(trainloader))
+test_data, test_labels = next(iter(testloader))
 
-# Convert to tensors (kept on CPU)
-train_data = torch.stack([x[0] for x in train_dataset])
-train_labels = torch.tensor([x[1] for x in train_dataset])
-val_data = torch.stack([x[0] for x in val_dataset])
-val_labels = torch.tensor([x[1] for x in val_dataset])
-test_data = torch.stack([x[0] for x in test])
-test_labels = torch.tensor([x[1] for x in test])
+# Split training data into train and validation (50000 and 10000)
+train_data, val_data = train_data[:50000], train_data[50000:]
+train_labels, val_labels = train_labels[:50000], train_labels[50000:]
 
-def train_epoch(model, train_data, train_labels, optimizer, criterion, batch_size, device):
-    model.train()
-    total_loss = 0
-    
-    # Loop over batches
-    for i in range(0, len(train_data), batch_size):
-        # Get batch
-        batch_x = train_data[i:i+batch_size].to(device)
-        batch_y = train_labels[i:i+batch_size].to(device)
-        
-        # Forward pass
-        outputs = model(batch_x)
-        loss = criterion(outputs, batch_y)
-        
-        # Backward pass and optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        
-        total_loss += loss.item()
-        
-    return total_loss / (len(train_data) // batch_size)
+# Check class distributions
+print("\nClass distributions:")
+print("-" * 50)
+print("Training set:")
+for i in range(10):
+    count = (train_labels == i).sum().item()
+    percentage = count / len(train_labels) * 100
+    print(f"Class {i}: {count} samples ({percentage:.1f}%)")
+
+print("\nValidation set:")
+for i in range(10):
+    count = (val_labels == i).sum().item()
+    percentage = count / len(val_labels) * 100
+    print(f"Class {i}: {count} samples ({percentage:.1f}%)")
+
+print('-' * 50)
+print("\n")
 
 def evaluate(model, data, labels, batch_size, device):
     model.eval()
@@ -114,6 +106,10 @@ def evaluate(model, data, labels, batch_size, device):
 
 if __name__ == "__main__":
 
+    BATCH_SIZE = 35
+    EPOCHS = 14
+    LEARNING_RATE = 0.0009528713951024067
+
     # Training setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = ConvNet().to(device)
@@ -128,12 +124,31 @@ if __name__ == "__main__":
     print('-' * 50)
 
     for epoch in range(EPOCHS):
-        train_loss = train_epoch(model, train_data, train_labels, optimizer, criterion, BATCH_SIZE, device)
+        model.train()
+        total_loss = 0
+        
+        # Loop over batches
+        for i in range(0, len(train_data), BATCH_SIZE):
+            # Get batch
+            batch_x = train_data[i:i+BATCH_SIZE].to(device)
+            batch_y = train_labels[i:i+BATCH_SIZE].to(device)
+            
+            # Forward pass
+            outputs = model(batch_x)
+            loss = criterion(outputs, batch_y)
+            
+            # Backward pass and optimize
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            total_loss += loss.item()
+        
         train_acc = evaluate(model, train_data, train_labels, BATCH_SIZE, device)
         val_acc = evaluate(model, val_data, val_labels, BATCH_SIZE, device)
         
         print(f'Epoch {epoch+1}/{EPOCHS}:')
-        print(f'Training Loss: {train_loss:.4f}')
+        print(f'Training Loss: {total_loss / (len(train_data) // BATCH_SIZE):.4f}')
         print(f'Training Accuracy: {train_acc:.4f}')
         print(f'Validation Accuracy: {val_acc:.4f}')
         print('-' * 50)
